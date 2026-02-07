@@ -208,22 +208,18 @@ const btn=document.getElementById("btn")
 const url=document.getElementById("url")
 const msg=document.getElementById("msg")
 const load=document.getElementById("load")
-const radios=document.querySelectorAll("input[name=f]")
-let controller=null
+let isProcessing=false
+let downloadTriggered=false
 const valid=u=>/^https?:\/\/.+/.test(u)
-
-const reset=()=>{
-if(controller) controller.abort()
-controller=null
+const resetState=()=>{
 btn.disabled=false
 load.style.display="none"
 msg.textContent=""
+isProcessing=false
+downloadTriggered=false
 }
-
-radios.forEach(r=>r.onchange=reset)
-
 btn.onclick=async()=>{
-reset()
+if(isProcessing)return
 const v=url.value.trim()
 const f=document.querySelector("input[name=f]:checked").value
 if(!valid(v)){
@@ -235,33 +231,46 @@ btn.disabled=true
 load.style.display="block"
 msg.textContent="Processing"
 msg.style.color="var(--muted)"
-controller=new AbortController()
+isProcessing=true
 try{
-const r=await fetch(`${API}?apikey=${KEY}&url=${encodeURIComponent(v)}&type=${f}`,{signal:controller.signal})
+const r=await fetch(`${API}?apikey=${KEY}&url=${encodeURIComponent(v)}&type=${f}`)
 const j=await r.json()
-if(!j.status||!j.data?.url) throw 0
-msg.textContent="Ready to download.."
+if(j.status&&j.data?.url){
+msg.textContent="Starting download..."
 msg.style.color="var(--success)"
-if(f==="mp3"){
-setTimeout(()=>location.href=j.data.url,600)
-}else{
-const file=await fetch(j.data.url)
-const blob=await file.blob()
+downloadTriggered=true
 const a=document.createElement("a")
-a.href=URL.createObjectURL(blob)
-a.download=j.data.filename||"video.mp4"
+a.href=j.data.url
+a.download=j.data.filename||`download.${f}`
+a.style.display="none"
 document.body.appendChild(a)
 a.click()
-URL.revokeObjectURL(a.href)
-a.remove()
+setTimeout(()=>{
+document.body.removeChild(a)
+resetState()
+},3000)
+}else{
+msg.textContent="Conversion failed"
+msg.style.color="var(--error)"
+resetState()
 }
-reset()
 }catch{
 msg.textContent="Something went wrong"
 msg.style.color="var(--error)"
-reset()
+resetState()
 }
 }
+url.addEventListener("keypress",(e)=>{
+if(e.key==="Enter"&&!isProcessing)btn.click()
+})
+url.addEventListener("input",()=>{
+if(msg.textContent&&!isProcessing){
+msg.textContent=""
+}
+})
+document.querySelectorAll('input[name="f"]').forEach(radio=>{
+radio.addEventListener("change",resetState)
+})
 </script>
 </body>
 </html>
