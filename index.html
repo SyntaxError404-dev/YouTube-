@@ -28,29 +28,11 @@ align-items:center;
 justify-content:center;
 padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)
 }
-.container{
-width:100%;
-max-width:420px;
-padding:20px
-}
-.logo-section{
-text-align:center;
-margin-bottom:32px
-}
-.logo-section i{
-font-size:2.8rem;
-margin-bottom:12px
-}
-.logo-section h1{
-font-size:1.4rem;
-letter-spacing:4px;
-font-weight:700
-}
-.logo-section p{
-font-size:.85rem;
-color:var(--muted);
-margin-top:6px
-}
+.container{width:100%;max-width:420px;padding:20px}
+.logo-section{text-align:center;margin-bottom:32px}
+.logo-section i{font-size:2.8rem;margin-bottom:12px}
+.logo-section h1{font-size:1.4rem;letter-spacing:4px;font-weight:700}
+.logo-section p{font-size:.85rem;color:var(--muted);margin-top:6px}
 .card{
 background:var(--card);
 border-radius:22px;
@@ -58,10 +40,7 @@ padding:26px;
 border:1px solid var(--border);
 box-shadow:0 30px 60px rgba(0,0,0,.45)
 }
-.group{
-margin-bottom:22px;
-text-align:left
-}
+.group{margin-bottom:22px}
 .group label{
 font-size:.7rem;
 letter-spacing:1px;
@@ -81,18 +60,9 @@ font-size:.95rem;
 outline:none;
 transition:.25s
 }
-.input:focus{
-border-color:var(--accent);
-background:#1a1a1a
-}
-.formats{
-display:flex;
-gap:10px
-}
-.option{
-flex:1;
-position:relative
-}
+.input:focus{border-color:var(--accent);background:#1a1a1a}
+.formats{display:flex;gap:10px}
+.option{flex:1;position:relative}
 .option input{position:absolute;opacity:0}
 .option div{
 padding:14px 10px;
@@ -130,11 +100,7 @@ cursor:pointer;
 transition:.25s
 }
 .button:active{transform:scale(.98)}
-.button:disabled{
-background:#2b2b2b;
-color:#666;
-cursor:not-allowed
-}
+.button:disabled{background:#2b2b2b;color:#666;cursor:not-allowed}
 .loader{
 height:3px;
 width:100%;
@@ -162,27 +128,20 @@ font-size:.8rem;
 min-height:18px;
 text-align:center
 }
-@media(max-width:360px){
-.card{padding:22px}
-.logo-section h1{font-size:1.25rem}
-}
 </style>
 </head>
 <body>
-
 <div class="container">
 <div class="logo-section">
 <i class="fas fa-bolt"></i>
 <h1>Sonic</h1>
 <p>Studio quality conversion</p>
 </div>
-
 <div class="card">
 <div class="group">
 <label>YouTube URL</label>
 <input id="url" class="input" placeholder="https://youtube.com/watch?v=..." inputmode="url">
 </div>
-
 <div class="group">
 <label>Format</label>
 <div class="formats">
@@ -196,97 +155,72 @@ text-align:center
 </label>
 </div>
 </div>
-
 <button id="btn" class="button">
 <span>Convert</span>
 <i class="fas fa-arrow-right"></i>
 </button>
-
 <div id="load" class="loader"></div>
 <div id="msg" class="status"></div>
 </div>
 </div>
-
 <script>
 const API="https://fgsi.dpdns.org/api/downloader/youtube/v2"
 const KEY="fgsiapi-37f137bd-6d"
-
 const btn=document.getElementById("btn")
-const urlInput=document.getElementById("url")
+const url=document.getElementById("url")
 const msg=document.getElementById("msg")
-const loader=document.getElementById("load")
-
+const load=document.getElementById("load")
+const radios=document.querySelectorAll("input[name=f]")
 let controller=null
+const valid=u=>/^https?:\/\/.+/.test(u)
 
-const resetUI=()=>{
+const reset=()=>{
+if(controller) controller.abort()
+controller=null
 btn.disabled=false
-loader.style.display="none"
+load.style.display="none"
+msg.textContent=""
 }
 
+url.oninput=reset
+radios.forEach(r=>r.onchange=reset)
+
 btn.onclick=async()=>{
-if(controller) controller.abort()
-controller=new AbortController()
-
-const url=urlInput.value.trim()
-const type=document.querySelector("input[name=f]:checked").value
-
-if(!/^https?:\/\/.+/.test(url)){
+const v=url.value.trim()
+const f=document.querySelector("input[name=f]:checked").value
+if(!valid(v)){
 msg.textContent="Enter a valid link"
 msg.style.color="var(--error)"
 return
 }
-
+reset()
 btn.disabled=true
-loader.style.display="block"
+load.style.display="block"
 msg.textContent="Processing"
 msg.style.color="var(--muted)"
-
+controller=new AbortController()
 try{
-const meta=await fetch(`${API}?apikey=${KEY}&url=${encodeURIComponent(url)}&type=${type}`,{signal:controller.signal})
-const json=await meta.json()
-
-if(!json.status||!json.data?.url) throw 0
-
-const fileRes=await fetch(json.data.url,{signal:controller.signal})
-const blob=await fileRes.blob()
-
+const r=await fetch(`${API}?apikey=${KEY}&url=${encodeURIComponent(v)}&type=${f}`,{signal:controller.signal})
+const j=await r.json()
+if(!j.status||!j.data?.url) throw 0
+msg.textContent="Downloading"
+msg.style.color="var(--success)"
+const file=await fetch(j.data.url)
+const blob=await file.blob()
 const a=document.createElement("a")
 a.href=URL.createObjectURL(blob)
-a.download=`SONIC-${json.data.filename||("file."+type)}`
+a.download=j.data.filename||`download.${f}`
 document.body.appendChild(a)
 a.click()
-a.remove()
 URL.revokeObjectURL(a.href)
-
-msg.textContent="Download started"
-msg.style.color="var(--success)"
-resetUI()
-}catch(e){
-if(e.name==="AbortError"){
-msg.textContent="Cancelled"
-msg.style.color="var(--muted)"
-}else{
-msg.textContent="Something went wrong"
+a.remove()
+reset()
+}catch{
+msg.textContent="Cancelled or failed"
 msg.style.color="var(--error)"
+reset()
 }
-resetUI()
-}
-}
-
-document.querySelectorAll("input[name=f]").forEach(r=>{
-r.onchange=()=>{
-if(controller) controller.abort()
-resetUI()
-msg.textContent=""
-}
-})
-
-urlInput.oninput=()=>{
-if(controller) controller.abort()
-resetUI()
-msg.textContent=""
 }
 </script>
-
 </body>
 </html>
