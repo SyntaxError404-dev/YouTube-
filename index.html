@@ -180,7 +180,7 @@ text-align:center
 <div class="card">
 <div class="group">
 <label>YouTube URL</label>
-<input id="url" class="input" placeholder="https://youtube.com/watch?v=..." autocomplete="off" inputmode="url">
+<input id="url" class="input" placeholder="https://youtube.com/watch?v=..." inputmode="url">
 </div>
 
 <div class="group">
@@ -210,38 +210,81 @@ text-align:center
 <script>
 const API="https://fgsi.dpdns.org/api/downloader/youtube/v2"
 const KEY="fgsiapi-37f137bd-6d"
+
 const btn=document.getElementById("btn")
-const url=document.getElementById("url")
+const urlInput=document.getElementById("url")
 const msg=document.getElementById("msg")
-const load=document.getElementById("load")
-const valid=u=>/^https?:\/\/.+/.test(u)
+const loader=document.getElementById("load")
+
+let controller=null
+
+const resetUI=()=>{
+btn.disabled=false
+loader.style.display="none"
+}
 
 btn.onclick=async()=>{
-const v=url.value.trim()
-const f=document.querySelector("input[name=f]:checked").value
-if(!valid(v)){
+if(controller) controller.abort()
+controller=new AbortController()
+
+const url=urlInput.value.trim()
+const type=document.querySelector("input[name=f]:checked").value
+
+if(!/^https?:\/\/.+/.test(url)){
 msg.textContent="Enter a valid link"
 msg.style.color="var(--error)"
 return
 }
+
 btn.disabled=true
-load.style.display="block"
+loader.style.display="block"
 msg.textContent="Processing"
 msg.style.color="var(--muted)"
+
 try{
-const r=await fetch(`${API}?apikey=${KEY}&url=${encodeURIComponent(v)}&type=${f}`)
-const j=await r.json()
-if(j.status&&j.data?.url){
-msg.textContent="Ready to download.."
+const meta=await fetch(`${API}?apikey=${KEY}&url=${encodeURIComponent(url)}&type=${type}`,{signal:controller.signal})
+const json=await meta.json()
+
+if(!json.status||!json.data?.url) throw 0
+
+const fileRes=await fetch(json.data.url,{signal:controller.signal})
+const blob=await fileRes.blob()
+
+const a=document.createElement("a")
+a.href=URL.createObjectURL(blob)
+a.download=`SONIC-${json.data.filename||("file."+type)}`
+document.body.appendChild(a)
+a.click()
+a.remove()
+URL.revokeObjectURL(a.href)
+
+msg.textContent="Download started"
 msg.style.color="var(--success)"
-setTimeout(()=>location.href=j.data.url,600)
-}else throw 0
-}catch{
+resetUI()
+}catch(e){
+if(e.name==="AbortError"){
+msg.textContent="Cancelled"
+msg.style.color="var(--muted)"
+}else{
 msg.textContent="Something went wrong"
 msg.style.color="var(--error)"
-btn.disabled=false
-load.style.display="none"
 }
+resetUI()
+}
+}
+
+document.querySelectorAll("input[name=f]").forEach(r=>{
+r.onchange=()=>{
+if(controller) controller.abort()
+resetUI()
+msg.textContent=""
+}
+})
+
+urlInput.oninput=()=>{
+if(controller) controller.abort()
+resetUI()
+msg.textContent=""
 }
 </script>
 
