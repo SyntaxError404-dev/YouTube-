@@ -28,54 +28,6 @@ align-items:center;
 justify-content:center;
 padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)
 }
-#preload{
-position:fixed;
-inset:0;
-background:var(--bg);
-display:flex;
-align-items:center;
-justify-content:center;
-z-index:9999;
-transition:opacity .6s ease,visibility .6s ease
-}
-#preload.hide{
-opacity:0;
-visibility:hidden
-}
-.preload-box{
-display:flex;
-flex-direction:column;
-align-items:center;
-gap:18px
-}
-.preload-box i{
-font-size:2.6rem;
-animation:pulse 1.4s infinite
-}
-.preload-bar{
-width:120px;
-height:4px;
-background:#1a1a1a;
-border-radius:3px;
-overflow:hidden
-}
-.preload-bar::after{
-content:"";
-height:100%;
-width:40%;
-background:var(--accent);
-display:block;
-animation:load 1.2s infinite
-}
-@keyframes load{
-0%{transform:translateX(-120%)}
-100%{transform:translateX(300%)}
-}
-@keyframes pulse{
-0%{opacity:1}
-50%{opacity:.4}
-100%{opacity:1}
-}
 .container{
 width:100%;
 max-width:420px;
@@ -141,10 +93,7 @@ gap:10px
 flex:1;
 position:relative
 }
-.option input{
-position:absolute;
-opacity:0
-}
+.option input{position:absolute;opacity:0}
 .option div{
 padding:14px 10px;
 border-radius:12px;
@@ -203,6 +152,10 @@ background:var(--accent);
 display:block;
 animation:load 1.2s infinite
 }
+@keyframes load{
+0%{transform:translateX(-120%)}
+100%{transform:translateX(300%)}
+}
 .status{
 margin-top:16px;
 font-size:.8rem;
@@ -217,24 +170,19 @@ text-align:center
 </head>
 <body>
 
-<div id="preload">
-<div class="preload-box">
-<i class="fas fa-bolt"></i>
-<div class="preload-bar"></div>
-</div>
-</div>
-
 <div class="container">
 <div class="logo-section">
 <i class="fas fa-bolt"></i>
 <h1>Sonic</h1>
 <p>Studio quality conversion</p>
 </div>
+
 <div class="card">
 <div class="group">
 <label>YouTube URL</label>
 <input id="url" class="input" placeholder="https://youtube.com/watch?v=..." autocomplete="off" inputmode="url">
 </div>
+
 <div class="group">
 <label>Format</label>
 <div class="formats">
@@ -248,10 +196,12 @@ text-align:center
 </label>
 </div>
 </div>
+
 <button id="btn" class="button">
 <span>Convert</span>
 <i class="fas fa-arrow-right"></i>
 </button>
+
 <div id="load" class="loader"></div>
 <div id="msg" class="status"></div>
 </div>
@@ -265,10 +215,6 @@ const url=document.getElementById("url")
 const msg=document.getElementById("msg")
 const load=document.getElementById("load")
 const valid=u=>/^https?:\/\/.+/.test(u)
-
-window.addEventListener("load",()=>{
-setTimeout(()=>document.getElementById("preload").classList.add("hide"),600)
-})
 
 btn.onclick=async()=>{
 const v=url.value.trim()
@@ -298,5 +244,6 @@ load.style.display="none"
 }
 }
 </script>
+
 </body>
 </html>
