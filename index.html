@@ -1,276 +1,284 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Sonic</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-:root{
---bg:#050505;
---card:#0f0f0f;
---accent:#ffffff;
---text:#ffffff;
---muted:#8a8a8a;
---border:#222;
---input:#141414;
---success:#4ade80;
---error:#ff5c5c
-}
-*{margin:0;padding:0;box-sizing:border-box;font-family:Inter,sans-serif}
-body{
-min-height:100svh;
-background:var(--bg);
-color:var(--text);
-display:flex;
-align-items:center;
-justify-content:center;
-padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)
-}
-.container{
-width:100%;
-max-width:420px;
-padding:20px
-}
-.logo-section{
-text-align:center;
-margin-bottom:32px
-}
-.logo-section i{
-font-size:2.8rem;
-margin-bottom:12px
-}
-.logo-section h1{
-font-size:1.4rem;
-letter-spacing:4px;
-font-weight:700
-}
-.logo-section p{
-font-size:.85rem;
-color:var(--muted);
-margin-top:6px
-}
-.card{
-background:var(--card);
-border-radius:22px;
-padding:26px;
-border:1px solid var(--border);
-box-shadow:0 30px 60px rgba(0,0,0,.45)
-}
-.group{
-margin-bottom:22px;
-text-align:left
-}
-.group label{
-font-size:.7rem;
-letter-spacing:1px;
-color:var(--muted);
-margin-left:6px;
-display:block;
-margin-bottom:8px
-}
-.input{
-width:100%;
-padding:15px 16px;
-border-radius:12px;
-border:1px solid var(--border);
-background:var(--input);
-color:var(--text);
-font-size:.95rem;
-outline:none;
-transition:.25s
-}
-.input:focus{
-border-color:var(--accent);
-background:#1a1a1a
-}
-.formats{
-display:flex;
-gap:10px
-}
-.option{
-flex:1;
-position:relative
-}
-.option input{position:absolute;opacity:0}
-.option div{
-padding:14px 10px;
-border-radius:12px;
-border:1px solid var(--border);
-background:var(--input);
-display:flex;
-flex-direction:column;
-align-items:center;
-gap:4px;
-cursor:pointer;
-transition:.2s
-}
-.option i{font-size:1.1rem}
-.option span{font-size:.75rem;font-weight:600}
-.option input:checked+div{
-background:var(--accent);
-color:var(--bg);
-border-color:var(--accent)
-}
-.button{
-width:100%;
-padding:17px;
-border-radius:14px;
-border:none;
-background:var(--accent);
-color:var(--bg);
-font-size:.95rem;
-font-weight:700;
-display:flex;
-align-items:center;
-justify-content:center;
-gap:10px;
-cursor:pointer;
-transition:.25s
-}
-.button:active{transform:scale(.98)}
-.button:disabled{
-background:#2b2b2b;
-color:#666;
-cursor:not-allowed
-}
-.loader{
-height:3px;
-width:100%;
-background:#1a1a1a;
-border-radius:3px;
-overflow:hidden;
-margin-top:14px;
-display:none
-}
-.loader::after{
-content:"";
-height:100%;
-width:40%;
-background:var(--accent);
-display:block;
-animation:load 1.2s infinite
-}
-@keyframes load{
-0%{transform:translateX(-120%)}
-100%{transform:translateX(300%)}
-}
-.status{
-margin-top:16px;
-font-size:.8rem;
-min-height:18px;
-text-align:center
-}
-@media(max-width:360px){
-.card{padding:22px}
-.logo-section h1{font-size:1.25rem}
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Sonic</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050505;
+            --card: #0f0f0f;
+            --accent: #ffffff;
+            --text: #ffffff;
+            --muted: #8a8a8a;
+            --border: #222;
+            --input: #141414;
+            --success: #4ade80;
+            --error: #ff5c5c
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Inter, sans-serif }
+        body {
+            min-height: 100svh;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)
+        }
+        .container {
+            width: 100%;
+            max-width: 420px;
+            padding: 20px
+        }
+        .logo-section {
+            text-align: center;
+            margin-bottom: 32px
+        }
+        .logo-section i {
+            font-size: 2.8rem;
+            margin-bottom: 12px
+        }
+        .logo-section h1 {
+            font-size: 1.4rem;
+            letter-spacing: 4px;
+            font-weight: 700
+        }
+        .logo-section p {
+            font-size: .85rem;
+            color: var(--muted);
+            margin-top: 6px
+        }
+        .card {
+            background: var(--card);
+            border-radius: 22px;
+            padding: 26px;
+            border: 1px solid var(--border);
+            box-shadow: 0 30px 60px rgba(0,0,0,.45)
+        }
+        .group {
+            margin-bottom: 22px;
+            text-align: left
+        }
+        .group label {
+            font-size: .7rem;
+            letter-spacing: 1px;
+            color: var(--muted);
+            margin-left: 6px;
+            display: block;
+            margin-bottom: 8px
+        }
+        .input {
+            width: 100%;
+            padding: 15px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--input);
+            color: var(--text);
+            font-size: .95rem;
+            outline: none;
+            transition: .25s
+        }
+        .input:focus {
+            border-color: var(--accent);
+            background: #1a1a1a
+        }
+        .formats {
+            display: flex;
+            gap: 10px
+        }
+        .option {
+            flex: 1;
+            position: relative
+        }
+        .option input { position: absolute; opacity: 0 }
+        .option div {
+            padding: 14px 10px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--input);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: .2s
+        }
+        .option i { font-size: 1.1rem }
+        .option span { font-size: .75rem; font-weight: 600 }
+        .option input:checked + div {
+            background: var(--accent);
+            color: var(--bg);
+            border-color: var(--accent)
+        }
+        .button {
+            width: 100%;
+            padding: 17px;
+            border-radius: 14px;
+            border: none;
+            background: var(--accent);
+            color: var(--bg);
+            font-size: .95rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: .25s
+        }
+        .button:active { transform: scale(.98) }
+        .button:disabled {
+            background: #2b2b2b;
+            color: #666;
+            cursor: not-allowed
+        }
+        .loader {
+            height: 3px;
+            width: 100%;
+            background: #1a1a1a;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 14px;
+            display: none
+        }
+        .loader::after {
+            content: "";
+            height: 100%;
+            width: 40%;
+            background: var(--accent);
+            display: block;
+            animation: load 1.2s infinite
+        }
+        @keyframes load {
+            0% { transform: translateX(-120%) }
+            100% { transform: translateX(300%) }
+        }
+        .status {
+            margin-top: 16px;
+            font-size: .8rem;
+            min-height: 18px;
+            text-align: center
+        }
+        @media(max-width:360px) {
+            .card { padding: 22px }
+            .logo-section h1 { font-size: 1.25rem }
+        }
+    </style>
 </head>
 <body>
-<div class="container">
-<div class="logo-section">
-<i class="fas fa-bolt"></i>
-<h1>Sonic</h1>
-<p>Studio quality conversion</p>
-</div>
-<div class="card">
-<div class="group">
-<label>YouTube URL</label>
-<input id="url" class="input" placeholder="https://youtube.com/watch?v=..." autocomplete="off" inputmode="url">
-</div>
-<div class="group">
-<label>Format</label>
-<div class="formats">
-<label class="option">
-<input type="radio" name="f" value="mp3" checked>
-<div><i class="fas fa-music"></i><span>MP3</span></div>
-</label>
-<label class="option">
-<input type="radio" name="f" value="mp4">
-<div><i class="fas fa-video"></i><span>MP4</span></div>
-</label>
-</div>
-</div>
-<button id="btn" class="button">
-<span>Convert</span>
-<i class="fas fa-arrow-right"></i>
-</button>
-<div id="load" class="loader"></div>
-<div id="msg" class="status"></div>
-</div>
-</div>
-<script>
-const API="https://fgsi.dpdns.org/api/downloader/youtube/v2"
-const KEY="fgsiapi-37f137bd-6d"
-const btn=document.getElementById("btn")
-const url=document.getElementById("url")
-const msg=document.getElementById("msg")
-const load=document.getElementById("load")
-let isProcessing=false
-let downloadTriggered=false
-const valid=u=>/^https?:\/\/.+/.test(u)
-const resetState=()=>{
-btn.disabled=false
-load.style.display="none"
-msg.textContent=""
-isProcessing=false
-downloadTriggered=false
-}
-btn.onclick=async()=>{
-if(isProcessing)return
-const v=url.value.trim()
-const f=document.querySelector("input[name=f]:checked").value
-if(!valid(v)){
-msg.textContent="Enter a valid link"
-msg.style.color="var(--error)"
-return
-}
-btn.disabled=true
-load.style.display="block"
-msg.textContent="Processing"
-msg.style.color="var(--muted)"
-isProcessing=true
-try{
-const r=await fetch(`${API}?apikey=${KEY}&url=${encodeURIComponent(v)}&type=${f}`)
-const j=await r.json()
-if(j.status&&j.data?.url){
-msg.textContent="Starting download..."
-msg.style.color="var(--success)"
-downloadTriggered=true
-const a=document.createElement("a")
-a.href=j.data.url
-a.download=j.data.filename||`download.${f}`
-a.style.display="none"
-document.body.appendChild(a)
-a.click()
-setTimeout(()=>{
-document.body.removeChild(a)
-resetState()
-},3000)
-}else{
-msg.textContent="Conversion failed"
-msg.style.color="var(--error)"
-resetState()
-}
-}catch{
-msg.textContent="Something went wrong"
-msg.style.color="var(--error)"
-resetState()
-}
-}
-url.addEventListener("keypress",(e)=>{
-if(e.key==="Enter"&&!isProcessing)btn.click()
-})
-url.addEventListener("input",()=>{
-if(msg.textContent&&!isProcessing){
-msg.textContent=""
-}
-})
-document.querySelectorAll('input[name="f"]').forEach(radio=>{
-radio.addEventListener("change",resetState)
-})
-</script>
+    <div class="container">
+        <div class="logo-section">
+            <i class="fas fa-bolt"></i>
+            <h1>Sonic</h1>
+            <p>Studio quality conversion</p>
+        </div>
+        <div class="card">
+            <div class="group">
+                <label>YouTube URL</label>
+                <input id="url" class="input" placeholder="https://youtube.com/watch?v=..." autocomplete="off" inputmode="url">
+            </div>
+            <div class="group">
+                <label>Format</label>
+                <div class="formats">
+                    <label class="option">
+                        <input type="radio" name="f" value="mp3" checked>
+                        <div><i class="fas fa-music"></i><span>MP3</span></div>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="f" value="mp4">
+                        <div><i class="fas fa-video"></i><span>MP4</span></div>
+                    </label>
+                </div>
+            </div>
+            <button id="btn" class="button">
+                <span>Convert</span>
+                <i class="fas fa-arrow-right"></i>
+            </button>
+            <div id="load" class="loader"></div>
+            <div id="msg" class="status"></div>
+        </div>
+    </div>
+    <script>
+        const API = "https://fgsi.dpdns.org/api/downloader/youtube/v2";
+        const KEY = "fgsiapi-37f137bd-6d";
+        const btn = document.getElementById("btn");
+        const urlInput = document.getElementById("url");
+        const msg = document.getElementById("msg");
+        const load = document.getElementById("load");
+
+        const resetUI = () => {
+            btn.disabled = false;
+            load.style.display = "none";
+        };
+
+        const downloadFile = (fileUrl, fileName) => {
+            const anchor = document.createElement('a');
+            anchor.href = fileUrl;
+            anchor.setAttribute('download', fileName);
+            anchor.style.display = 'none';
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+        };
+
+        const valid = u => /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/.+/.test(u);
+
+        btn.onclick = async () => {
+            const v = urlInput.value.trim();
+            const f = document.querySelector("input[name=f]:checked").value;
+
+            if (!valid(v)) {
+                msg.textContent = "Enter a valid link";
+                msg.style.color = "var(--error)";
+                return;
+            }
+
+            btn.disabled = true;
+            load.style.display = "block";
+            msg.textContent = "Processing";
+            msg.style.color = "var(--muted)";
+
+            try {
+                const r = await fetch(`${API}?apikey=${KEY}&url=${encodeURIComponent(v)}&type=${f}`);
+                const j = await r.json();
+
+                if (j.status && j.data?.url) {
+                    msg.textContent = "Ready to download..";
+                    msg.style.color = "var(--success)";
+                    
+                    const fileName = j.data.filename || `sonic_download.${f}`;
+                    downloadFile(j.data.url, fileName);
+                    
+                    setTimeout(() => {
+                        msg.textContent = "Download started";
+                        resetUI();
+                    }, 2000);
+                } else {
+                    throw new Error();
+                }
+            } catch {
+                msg.textContent = "Something went wrong";
+                msg.style.color = "var(--error)";
+                resetUI();
+            }
+        };
+
+        urlInput.oninput = () => {
+            if (msg.textContent !== "") {
+                msg.textContent = "";
+                resetUI();
+            }
+        };
+
+        document.querySelectorAll('input[name="f"]').forEach(radio => {
+            radio.onchange = () => {
+                resetUI();
+                msg.textContent = "";
+            };
+        });
+    </script>
 </body>
 </html>
