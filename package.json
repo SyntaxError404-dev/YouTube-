@@ -1,20 +1,16 @@
 {
-  "name": "yt-audio-downloader",
+  "name": "ytmp3-api",
   "version": "1.0.0",
-  "description": "Express API to download YouTube audio as MP3 with proxy rotation",
-  "main": "server.js",
-  "type": "commonjs",
+  "description": "youtube mp3 downloader via ytmp3.mobi",
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
-  },
-  "dependencies": {
-    "express": "^4.19.2",
-    "undici": "^6.19.2"
+    "start": "node index.js"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["youtube", "mp3", "downloader", "express", "proxy"],
-  "license": "MIT"
+  "dependencies": {
+    "express": "^4.21.0",
+    "https-proxy-agent": "^7.0.5"
+  }
 }
