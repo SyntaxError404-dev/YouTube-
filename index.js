@@ -1,192 +1,254 @@
 const express = require('express');
+const axios = require('axios');
 const crypto = require('crypto');
-const forge = require('node-forge');
-const sharp = require('sharp');
-const fs = require('fs');
-const { execSync } = require('child_process');
-const fetch = require('node-fetch');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const api = 'https://api.snapwc.com';
-const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
-const serverPubPem = `-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvDU+dR2bSews55172x4L\ns/ja+Dxt9ViZcj/nY0YodYo7l4jEKtEiCNV28lpFj3CkP4HKRCjL/jYkQNKGPwVg\ngUCGr/jBF1FpDLsqa0kg+dtfkm5Xm9QAyMBeG/jPdl5BEPOVh33A1UkPO/Xw6kSH\nrfghOUwBMzRBtXeYuJiYs5sKrf+Wy5sv708TI6G4hAPJG/69W4NNFJi/ipBNxntG\ndAoUHpEy4iYsvBgiccE7U0MBDnSHSqBBtIdMMFRHARn/tc+jXaadS0a4YmhTygiN\neAJU4QuqAE25CsvkzIYIVEmlRXVcC0afw76XcwDpKBMVR5bEPzd3tMEfA+R34L1D\nfQIDAQAB\n-----END PUBLIC KEY-----`;
-const serverPub = forge.pki.publicKeyFromPem(serverPubPem);
+const BASE_URL = 'https://app-tts.voiser.ai';
 
-function genClientKeys() {
-  const kp = forge.pki.rsa.generateKeyPair({ bits: 512 });
-  return { pub: forge.pki.publicKeyToPem(kp.publicKey), priv: kp.privateKey };
+const VOICES = {
+  Gadis: '173',
+  Ardi: '174',
+  Siti: '404',
+  Dimas: '405',
+  Tuti: '488',
+  Jajang: '489',
+  Abbi: '540',
+  Bella: '541',
+  Hollie: '542',
+  Maisie: '543',
+  Mia: '544',
+  Olivia: '545',
+  Alfie: '546',
+  Elliot: '547',
+  Ethan: '548',
+  Noah: '549',
+  Meryem: '218',
+  Ibrahim: '219',
+  Aoi: '779',
+  Daichi: '780',
+  Mayu: '781',
+  Naoki: '782',
+  Shiori: '783',
+  Nanami: '178',
+  Keita: '179',
+  BongJin: '785',
+  GookMin: '786',
+  Hyunsu: '787',
+  JiMin: '788',
+  SeoHyeon: '789',
+  SoonBok: '790',
+  YuJin: '791',
+  SunHi: '180',
+  InJoon: '181',
+  Algenib: '817',
+  Despina: '824',
+  Enceladus: '825',
+  Ava: '663',
+  Marcello: '695',
+  William: '713',
+  Ash: '706',
+  Sage: '709'
+};
+
+const VOICE_LOOKUP = {};
+for (const [name, id] of Object.entries(VOICES)) {
+  VOICE_LOOKUP[name.toLowerCase()] = id;
+  VOICE_LOOKUP[id] = id;
 }
 
-function encReq(data, clientPubPem) {
-  const aesKeyHex = crypto.randomBytes(16).toString('hex');
-  const aesKey = crypto.createHash('sha256').update(aesKeyHex).digest();
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', aesKey, iv);
-  const enc = Buffer.concat([cipher.update(JSON.stringify(data), 'utf8'), cipher.final()]);
+const VALID_MOODS = ['neutral', 'happy', 'sad', 'angry', 'excited', 'calm', 'serious'];
+
+function sanitize(name) {
+  return (name || 'tts')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 100);
+}
+
+function randomRevenuecatId() {
+  return 'rc_anon_' + crypto.randomBytes(8).toString('hex');
+}
+
+async function voiserTTS(text, voiceId, opts = {}) {
+  const revenuecatId = randomRevenuecatId();
+
+  const registerRes = await axios.post(`${BASE_URL}/members`, {
+    mac: null,
+    platform: 'android',
+    revenuecatId,
+    fcmToken: ''
+  }, {
+    headers: {
+      'User-Agent': 'Neo/1.0',
+      'Content-Type': 'application/json'
+    },
+    timeout: 30000
+  });
+
+  const memberCode = registerRes.data && registerRes.data.memberCode;
+  if (!memberCode) throw new Error('member registration failed');
+
+  const generateRes = await axios.post(`${BASE_URL}/tts`, {
+    memberCode,
+    text,
+    voiceId: String(voiceId),
+    pitch: String(opts.pitch || '0'),
+    speed: String(opts.speed || '1.0'),
+    mood: opts.mood || 'neutral',
+    instruction: opts.instruction || '',
+    hasEmotionTag: false,
+    lang: opts.lang || 'tr'
+  }, {
+    headers: {
+      'User-Agent': 'Dart/3.0 (dart:io)',
+      'Content-Type': 'application/json'
+    },
+    timeout: 60000
+  });
+
+  if (!generateRes.data || generateRes.data.status !== '1' || !generateRes.data.file) {
+    throw new Error('tts generation failed');
+  }
+
   return {
-    encrypted_key: forge.util.encode64(serverPub.encrypt(aesKeyHex, 'RSAES-PKCS1-V1_5')),
-    encrypted_data: Buffer.concat([iv, enc]).toString('base64'),
-    client_public_key: clientPubPem
+    audioUrl: generateRes.data.file,
+    id: generateRes.data.id
   };
 }
 
-function decResp(resp, clientPriv) {
-  const aesKeyHex = clientPriv.decrypt(forge.util.decode64(resp.encrypted_key), 'RSAES-PKCS1-V1_5');
-  const aesKey = crypto.createHash('sha256').update(aesKeyHex).digest();
-  const raw = Buffer.from(resp.encrypted_data, 'base64');
-  const dec = crypto.createDecipheriv('aes-256-cbc', aesKey, raw.slice(0, 16));
-  return JSON.parse(Buffer.concat([dec.update(raw.slice(16)), dec.final()]).toString('utf8'));
-}
+app.get('/tts', async (req, res) => {
+  const text = req.query.text;
+  const voiceRaw = (req.query.voice || 'Gadis').toString();
+  const pitch = req.query.pitch;
+  const speed = req.query.speed;
+  const mood = req.query.mood;
+  const lang = req.query.lang;
 
-async function solveCaptcha(imageB64) {
-  const raw = Buffer.from(imageB64.replace(/^data:image\/png;base64,/, ''), 'base64');
-  const p = `/tmp/snapwc-${Date.now()}-${Math.random()}.png`;
-  
-  if (!fs.existsSync('/tmp')) fs.mkdirSync('/tmp');
-  
-  console.log(`[CAPTCHA] Noise reduction engaged. Sending to Tesseract OCR...`);
-  await sharp(raw).resize(1200, null, { kernel: 'lanczos3' }).grayscale().normalize().toFile(p);
-  const attempts = [];
-  
-  try {
-    attempts.push(execSync(`tesseract ${p} - -l eng --psm 7 --oem 1 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 2>/dev/null`, { encoding: 'utf8', timeout: 5000 }).trim().replace(/\s+/g, ''));
-  } catch (e) {}
-  
-  try {
-    attempts.push(execSync(`tesseract ${p} - -l eng --psm 8 --oem 1 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 2>/dev/null`, { encoding: 'utf8', timeout: 5000 }).trim().replace(/\s+/g, ''));
-  } catch (e) {}
-  
-  if (fs.existsSync(p)) fs.unlinkSync(p);
-  return [...new Set(attempts.filter(x => x.length === 4))];
-}
+  if (!text) return res.status(400).json({ status: 'error', message: 'missing ?text=' });
 
-async function snapwc(url, maxAttempts = 15) {
-  const keys = genClientKeys();
-  const hBase = {
-    'content-type': 'application/json',
-    'user-agent': ua,
-    'x-locale': 'en',
-    origin: 'https://snapwc.com',
-    referer: 'https://snapwc.com/'
-  };
-
-  const init = await fetch(`${api}/api.visitor/init`, { method: 'POST', headers: hBase, body: JSON.stringify({}) });
-  
-  let jar = '';
-  const setCookie = init.headers.get('set-cookie');
-  if (setCookie) {
-    jar = setCookie.split(';')[0];
-  }
-  
-  const h = { ...hBase, cookie: jar };
-
-  const chk = await (await fetch(`${api}/api.captcha/is_required`, {
-    method: 'POST',
-    headers: h,
-    body: JSON.stringify({ scenario: 'parser', data: { url } })
-  })).json();
-
-  if (chk.status) {
-    let solved = false;
-    for (let i = 0; i < maxAttempts && !solved; i++) {
-      const genRes = await fetch(`${api}/api.captcha/generate`, { method: 'POST', headers: h, body: JSON.stringify({}) });
-      if (genRes.status !== 200) break;
-      const gen = await genRes.json();
-      const codes = await solveCaptcha(gen.captcha_image);
-      
-      for (const code of codes) {
-        const v = await fetch(`${api}/api.captcha/verify`, {
-          method: 'POST',
-          headers: h,
-          body: JSON.stringify({ captcha_token: gen.captcha_token, captcha_code: code, scenario: 'parser', data: { url } })
-        });
-        if (v.status === 200) { 
-          solved = true; 
-          console.log(`[CAPTCHA] Checkmate. Hash cracked: ${code}`);
-          break; 
-        }
-      }
-    }
-    if (!solved) return { status: 'error', message: 'Visual challenge evasion failed after max retries.' };
-  }
-
-  const body = encReq({ url }, keys.pub);
-  const res = await fetch(`${api}/api.parser/parse`, { method: 'POST', headers: h, body: JSON.stringify(body) });
-  const txt = await res.text();
-  if (!res.ok) return { status: 'error', code: res.status, message: txt.slice(0, 300) };
-  
-  const j = JSON.parse(txt);
-  const parsed = j.encrypted_data ? decResp(j, keys.priv) : j;
-  return { status: 'success', data: parsed };
-}
-
-app.get('/down', async (req, res) => {
-  const targetUrl = req.query.url;
-  
-  if (!targetUrl) {
-    return res.status(400).json({ error: 'Missing url parameter' });
-  }
-
-  console.log(`[API] Extracting video artifact: ${targetUrl}`);
-
-  try {
-    const result = await snapwc(targetUrl);
-    
-    if (result.status !== 'success' || !result.data) {
-      console.error(`[API-ERROR] Extraction failed: ${result.message}`);
-      return res.status(500).json({ error: result.message || 'Extraction failed' });
-    }
-
-    let downloadUrl = null;
-    let title = result.data.title || 'video';
-
-    if (result.data.medias && Array.isArray(result.data.medias)) {
-      const mp4s = result.data.medias.filter(m => (m.extension === 'mp4' || m.type === 'video') && m.url);
-      if (mp4s.length > 0) {
-        downloadUrl = mp4s[0].url;
-      } else if (result.data.medias[0] && result.data.medias[0].url) {
-        downloadUrl = result.data.medias[0].url;
-      }
-    } else if (result.data.video_url) {
-      downloadUrl = result.data.video_url;
-    } else if (result.data.url) {
-      downloadUrl = result.data.url;
-    }
-
-    if (!downloadUrl) {
-      return res.status(500).json({ error: 'No MP4 payload found in the target response.' });
-    }
-
-    console.log(`[API] Payload mapped: ${title}. Piping direct to client...`);
-
-    const safeTitle = title.replace(/[^a-zA-Z0-9 -]/g, '');
-    const streamRes = await fetch(downloadUrl, {
-      headers: { 'User-Agent': ua }
+  const voiceId = VOICE_LOOKUP[voiceRaw.toLowerCase()];
+  if (!voiceId) {
+    return res.status(400).json({
+      status: 'error',
+      message: `unknown voice "${voiceRaw}". use /voices to list available.`
     });
+  }
 
-    if (!streamRes.ok) {
-      throw new Error('Host rejected the stream transfer.');
-    }
-
-    res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.mp4"`);
-    res.setHeader('Content-Type', 'video/mp4');
-
-    streamRes.body.pipe(res);
-
-    streamRes.body.on('error', (err) => {
-      console.error(`[STREAM-ERROR] Pipeline broken: ${err.message}`);
-      res.end();
+  if (mood && !VALID_MOODS.includes(mood)) {
+    return res.status(400).json({
+      status: 'error',
+      message: `unknown mood "${mood}". valid: ${VALID_MOODS.join(', ')}`
     });
+  }
 
+  let result;
+  try {
+    result = await voiserTTS(text, voiceId, { pitch, speed, mood, lang });
   } catch (err) {
-    if (!res.headersSent) {
-      res.status(500).json({ error: err.message });
-    }
+    console.log(`tts failed: ${err.message}`);
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+
+  const filename = `${sanitize(text.slice(0, 40))}-${sanitize(voiceRaw)}.mp3`;
+
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${encodeURIComponent(filename)}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+  );
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  try {
+    const upstream = await axios.get(result.audioUrl, {
+      responseType: 'stream',
+      timeout: 60000,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity
+    });
+
+    const len = upstream.headers['content-length'];
+    if (len) res.setHeader('Content-Length', len);
+
+    upstream.data.pipe(res);
+
+    upstream.data.on('error', (err) => {
+      console.log(`stream error: ${err.message}`);
+      if (!res.headersSent) res.status(500).end();
+      else res.end();
+    });
+
+    res.on('close', () => {
+      try { upstream.data.destroy(); } catch (e) {}
+    });
+  } catch (err) {
+    console.log(`audio fetch failed: ${err.message}`);
+    if (!res.headersSent) res.status(500).json({ status: 'error', message: err.message });
+    else res.end();
   }
 });
 
+app.get('/tts-json', async (req, res) => {
+  const text = req.query.text;
+  const voiceRaw = (req.query.voice || 'Gadis').toString();
+  const pitch = req.query.pitch;
+  const speed = req.query.speed;
+  const mood = req.query.mood;
+  const lang = req.query.lang;
+
+  if (!text) return res.status(400).json({ status: 'error', message: 'missing ?text=' });
+
+  const voiceId = VOICE_LOOKUP[voiceRaw.toLowerCase()];
+  if (!voiceId) return res.status(400).json({ status: 'error', message: 'unknown voice' });
+
+  try {
+    const result = await voiserTTS(text, voiceId, { pitch, speed, mood, lang });
+    res.json({ status: 'success', audio_url: result.audioUrl, id: result.id });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+app.get('/voices', (req, res) => {
+  const groups = {
+    indonesian: ['Gadis', 'Ardi', 'Siti', 'Dimas', 'Tuti', 'Jajang'],
+    english: ['Abbi', 'Bella', 'Hollie', 'Maisie', 'Mia', 'Olivia', 'Alfie', 'Elliot', 'Ethan', 'Noah'],
+    turkish: ['Meryem', 'Ibrahim'],
+    japanese: ['Aoi', 'Daichi', 'Mayu', 'Naoki', 'Shiori', 'Nanami', 'Keita'],
+    korean: ['BongJin', 'GookMin', 'Hyunsu', 'JiMin', 'SeoHyeon', 'SoonBok', 'YuJin', 'SunHi', 'InJoon'],
+    multilingual: ['Algenib', 'Despina', 'Enceladus', 'Ava', 'Marcello', 'William', 'Ash', 'Sage']
+  };
+
+  res.json({
+    status: 'success',
+    voices: groups,
+    moods: VALID_MOODS,
+    params: {
+      voice: 'name or id',
+      pitch: 'number, default 0',
+      speed: 'number, default 1.0',
+      mood: 'see moods list',
+      lang: 'language code, default tr'
+    }
+  });
+});
+
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    usage: {
+      download: '/tts?text=hello world&voice=Gadis',
+      json: '/tts-json?text=hello world&voice=Abbi',
+      voices: '/voices'
+    },
+    example_with_all_params: '/tts?text=hello&voice=Abbi&pitch=2&speed=1.2&mood=happy&lang=en'
+  });
+});
+
 app.listen(PORT, () => {
-  console.log(`[SYSTEM] Extraction Gateway bound to port ${PORT}`);
+  console.log(`http on ${PORT}`);
+  console.log(`${Object.keys(VOICES).length} voices loaded`);
 });
