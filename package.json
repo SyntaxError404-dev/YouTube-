@@ -1,16 +1,18 @@
 {
-  "name": "ytmp3-api",
+  "name": "proxy-extractor-api",
   "version": "1.0.0",
-  "description": "youtube mp3 downloader via ytmp3.mobi",
+  "description": "Limitless YouTube MP3 extraction via rotating proxy pool.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "dependencies": {
-    "express": "^4.21.0",
-    "https-proxy-agent": "^7.0.5"
-  }
+    "express": "^4.18.2",
+    "https-proxy-agent": "^7.0.2",
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "private": true
 }
