@@ -1,23 +1,17 @@
 const express = require('express');
 const crypto = require('crypto');
 const forge = require('node-forge');
+const sharp = require('sharp');
+const fs = require('fs');
+const { execSync } = require('child_process');
+const fetch = require('node-fetch');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const api = 'https://api.snapwc.com';
 const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
-
-const serverPubPem = `-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvDU+dR2bSews55172x4L
-s/ja+Dxt9ViZcj/nY0YodYo7l4jEKtEiCNV28lpFj3CkP4HKRCjL/jYkQNKGPwVg
-gUCGr/jBF1FpDLsqa0kg+dtfkm5Xm9QAyMBeG/jPdl5BEPOVh33A1UkPO/Xw6kSH
-rfghOUwBMzRBtXeYuJiYs5sKrf+Wy5sv708TI6G4hAPJG/69W4NNFJi/ipBNxntG
-dAoUHpEy4iYsvBgiccE7U0MBDnSHSqBBtIdMMFRHARn/tc+jXaadS0a4YmhTygiN
-eAJU4QuqAE25CsvkzIYIVEmlRXVcC0afw76XcwDpKBMVR5bEPzd3tMEfA+R34L1D
-fQIDAQAB
------END PUBLIC KEY-----`;
-
+const serverPubPem = `-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvDU+dR2bSews55172x4L\ns/ja+Dxt9ViZcj/nY0YodYo7l4jEKtEiCNV28lpFj3CkP4HKRCjL/jYkQNKGPwVg\ngUCGr/jBF1FpDLsqa0kg+dtfkm5Xm9QAyMBeG/jPdl5BEPOVh33A1UkPO/Xw6kSH\nrfghOUwBMzRBtXeYuJiYs5sKrf+Wy5sv708TI6G4hAPJG/69W4NNFJi/ipBNxntG\ndAoUHpEy4iYsvBgiccE7U0MBDnSHSqBBtIdMMFRHARn/tc+jXaadS0a4YmhTygiN\neAJU4QuqAE25CsvkzIYIVEmlRXVcC0afw76XcwDpKBMVR5bEPzd3tMEfA+R34L1D\nfQIDAQAB\n-----END PUBLIC KEY-----`;
 const serverPub = forge.pki.publicKeyFromPem(serverPubPem);
 
 function genClientKeys() {
@@ -46,15 +40,29 @@ function decResp(resp, clientPriv) {
   return JSON.parse(Buffer.concat([dec.update(raw.slice(16)), dec.final()]).toString('utf8'));
 }
 
-function sanitize(name) {
-  return (name || 'video')
-    .replace(/[\\/:*?"<>|]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 120);
+async function solveCaptcha(imageB64) {
+  const raw = Buffer.from(imageB64.replace(/^data:image\/png;base64,/, ''), 'base64');
+  const p = `/tmp/snapwc-${Date.now()}-${Math.random()}.png`;
+  
+  if (!fs.existsSync('/tmp')) fs.mkdirSync('/tmp');
+  
+  console.log(`[CAPTCHA] Noise reduction engaged. Sending to Tesseract OCR...`);
+  await sharp(raw).resize(1200, null, { kernel: 'lanczos3' }).grayscale().normalize().toFile(p);
+  const attempts = [];
+  
+  try {
+    attempts.push(execSync(`tesseract ${p} - -l eng --psm 7 --oem 1 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 2>/dev/null`, { encoding: 'utf8', timeout: 5000 }).trim().replace(/\s+/g, ''));
+  } catch (e) {}
+  
+  try {
+    attempts.push(execSync(`tesseract ${p} - -l eng --psm 8 --oem 1 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 2>/dev/null`, { encoding: 'utf8', timeout: 5000 }).trim().replace(/\s+/g, ''));
+  } catch (e) {}
+  
+  if (fs.existsSync(p)) fs.unlinkSync(p);
+  return [...new Set(attempts.filter(x => x.length === 4))];
 }
 
-async function snapwc(url) {
+async function snapwc(url, maxAttempts = 15) {
   const keys = genClientKeys();
   const hBase = {
     'content-type': 'application/json',
@@ -65,7 +73,13 @@ async function snapwc(url) {
   };
 
   const init = await fetch(`${api}/api.visitor/init`, { method: 'POST', headers: hBase, body: JSON.stringify({}) });
-  const jar = init.headers.getSetCookie().map(c => c.split(';')[0]).join('; ');
+  
+  let jar = '';
+  const setCookie = init.headers.get('set-cookie');
+  if (setCookie) {
+    jar = setCookie.split(';')[0];
+  }
+  
   const h = { ...hBase, cookie: jar };
 
   const chk = await (await fetch(`${api}/api.captcha/is_required`, {
@@ -75,190 +89,104 @@ async function snapwc(url) {
   })).json();
 
   if (chk.status) {
-    return { status: 'error', message: 'captcha required, needs solver' };
+    let solved = false;
+    for (let i = 0; i < maxAttempts && !solved; i++) {
+      const genRes = await fetch(`${api}/api.captcha/generate`, { method: 'POST', headers: h, body: JSON.stringify({}) });
+      if (genRes.status !== 200) break;
+      const gen = await genRes.json();
+      const codes = await solveCaptcha(gen.captcha_image);
+      
+      for (const code of codes) {
+        const v = await fetch(`${api}/api.captcha/verify`, {
+          method: 'POST',
+          headers: h,
+          body: JSON.stringify({ captcha_token: gen.captcha_token, captcha_code: code, scenario: 'parser', data: { url } })
+        });
+        if (v.status === 200) { 
+          solved = true; 
+          console.log(`[CAPTCHA] Checkmate. Hash cracked: ${code}`);
+          break; 
+        }
+      }
+    }
+    if (!solved) return { status: 'error', message: 'Visual challenge evasion failed after max retries.' };
   }
 
   const body = encReq({ url }, keys.pub);
   const res = await fetch(`${api}/api.parser/parse`, { method: 'POST', headers: h, body: JSON.stringify(body) });
   const txt = await res.text();
   if (!res.ok) return { status: 'error', code: res.status, message: txt.slice(0, 300) };
-
-  let j;
-  try { j = JSON.parse(txt); } catch (e) { return { status: 'error', message: 'bad json from upstream' }; }
-
+  
+  const j = JSON.parse(txt);
   const parsed = j.encrypted_data ? decResp(j, keys.priv) : j;
   return { status: 'success', data: parsed };
 }
 
-function findBestMp4(payload) {
-  const candidates = [];
-
-  const walk = (node) => {
-    if (!node) return;
-    if (Array.isArray(node)) {
-      node.forEach(walk);
-      return;
-    }
-    if (typeof node !== 'object') return;
-
-    const url = node.url || node.link || node.download_url || node.downloadUrl;
-    const ext = (node.ext || node.extension || node.format || node.type || '').toLowerCase();
-    const mime = (node.mime_type || node.mimeType || node.mime || '').toLowerCase();
-
-    if (url && (ext === 'mp4' || mime === 'video/mp4' || mime.startsWith('video/'))) {
-      candidates.push({
-        url,
-        ext: 'mp4',
-        quality: node.quality || node.label || node.resolution || node.height || '',
-        size: node.size || node.filesize || null,
-        raw: node
-      });
-    }
-
-    for (const k of Object.keys(node)) walk(node[k]);
-  };
-
-  walk(payload);
-
-  if (!candidates.length) return null;
-
-  candidates.sort((a, b) => {
-    const qa = parseInt(String(a.quality).replace(/\D/g, ''), 10) || 0;
-    const qb = parseInt(String(b.quality).replace(/\D/g, ''), 10) || 0;
-    return qb - qa;
-  });
-
-  return candidates[0];
-}
-
-function findTitle(payload) {
-  const keys = ['title', 'name', 'video_title', 'filename', 'caption'];
-  const seen = new Set();
-
-  const walk = (node) => {
-    if (!node || seen.has(node)) return null;
-    if (typeof node === 'object') seen.add(node);
-
-    if (Array.isArray(node)) {
-      for (const item of node) {
-        const r = walk(item);
-        if (r) return r;
-      }
-      return null;
-    }
-
-    if (typeof node !== 'object') return null;
-
-    for (const k of keys) {
-      if (typeof node[k] === 'string' && node[k].trim()) return node[k].trim();
-    }
-
-    for (const k of Object.keys(node)) {
-      const r = walk(node[k]);
-      if (r) return r;
-    }
-
-    return null;
-  };
-
-  return walk(payload) || 'video';
-}
-
 app.get('/down', async (req, res) => {
-  const url = req.query.url;
-  if (!url) return res.status(400).json({ status: 'error', message: 'missing ?url=' });
-
-  let result;
-  try {
-    result = await snapwc(url);
-  } catch (err) {
-    console.log(`snapwc failed: ${err.message}`);
-    return res.status(500).json({ status: 'error', message: err.message });
+  const targetUrl = req.query.url;
+  
+  if (!targetUrl) {
+    return res.status(400).json({ error: 'Missing url parameter' });
   }
 
-  if (result.status !== 'success') {
-    return res.status(500).json(result);
-  }
-
-  const best = findBestMp4(result.data);
-  if (!best) {
-    return res.status(404).json({ status: 'error', message: 'no mp4 stream found', raw: result.data });
-  }
-
-  const title = sanitize(findTitle(result.data));
-  const filename = `${title}.mp4`;
-
-  res.setHeader('Content-Type', 'video/mp4');
-  res.setHeader(
-    'Content-Disposition',
-    `attachment; filename="${encodeURIComponent(filename)}"; filename*=UTF-8''${encodeURIComponent(filename)}`
-  );
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('X-Accel-Buffering', 'no');
+  console.log(`[API] Extracting video artifact: ${targetUrl}`);
 
   try {
-    const upstream = await fetch(best.url, {
-      headers: {
-        'user-agent': ua,
-        'referer': 'https://snapwc.com/',
-        'origin': 'https://snapwc.com'
-      }
-    });
-
-    if (!upstream.ok || !upstream.body) {
-      return res.status(502).json({ status: 'error', message: `upstream ${upstream.status}` });
+    const result = await snapwc(targetUrl);
+    
+    if (result.status !== 'success' || !result.data) {
+      console.error(`[API-ERROR] Extraction failed: ${result.message}`);
+      return res.status(500).json({ error: result.message || 'Extraction failed' });
     }
 
-    const len = upstream.headers.get('content-length');
-    if (len) res.setHeader('Content-Length', len);
+    let downloadUrl = null;
+    let title = result.data.title || 'video';
 
-    const reader = upstream.body.getReader();
-    const pump = async () => {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (!res.write(Buffer.from(value))) {
-          await new Promise(r => res.once('drain', r));
-        }
+    if (result.data.medias && Array.isArray(result.data.medias)) {
+      const mp4s = result.data.medias.filter(m => (m.extension === 'mp4' || m.type === 'video') && m.url);
+      if (mp4s.length > 0) {
+        downloadUrl = mp4s[0].url;
+      } else if (result.data.medias[0] && result.data.medias[0].url) {
+        downloadUrl = result.data.medias[0].url;
       }
+    } else if (result.data.video_url) {
+      downloadUrl = result.data.video_url;
+    } else if (result.data.url) {
+      downloadUrl = result.data.url;
+    }
+
+    if (!downloadUrl) {
+      return res.status(500).json({ error: 'No MP4 payload found in the target response.' });
+    }
+
+    console.log(`[API] Payload mapped: ${title}. Piping direct to client...`);
+
+    const safeTitle = title.replace(/[^a-zA-Z0-9 -]/g, '');
+    const streamRes = await fetch(downloadUrl, {
+      headers: { 'User-Agent': ua }
+    });
+
+    if (!streamRes.ok) {
+      throw new Error('Host rejected the stream transfer.');
+    }
+
+    res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.mp4"`);
+    res.setHeader('Content-Type', 'video/mp4');
+
+    streamRes.body.pipe(res);
+
+    streamRes.body.on('error', (err) => {
+      console.error(`[STREAM-ERROR] Pipeline broken: ${err.message}`);
       res.end();
-    };
-
-    pump().catch(() => res.end());
-
-    res.on('close', () => {
-      try { reader.cancel(); } catch (e) {}
     });
+
   } catch (err) {
-    console.log(`stream failed: ${err.message}`);
-    if (!res.headersSent) res.status(500).json({ status: 'error', message: err.message });
-    else res.end();
-  }
-});
-
-app.get('/info', async (req, res) => {
-  const url = req.query.url;
-  if (!url) return res.status(400).json({ status: 'error', message: 'missing ?url=' });
-
-  try {
-    const result = await snapwc(url);
-    if (result.status !== 'success') return res.status(500).json(result);
-    res.json({ status: 'success', data: result.data });
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
-  }
-});
-
-app.get('/', (req, res) => {
-  res.json({
-    status: 'ok',
-    usage: {
-      download: '/down?url=https://youtu.be/VIDEO_ID',
-      info: '/info?url=https://youtu.be/VIDEO_ID'
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
     }
-  });
+  }
 });
 
 app.listen(PORT, () => {
-  console.log(`http on ${PORT}`);
+  console.log(`[SYSTEM] Extraction Gateway bound to port ${PORT}`);
 });
